@@ -102,8 +102,10 @@ assert_valid_ukhp_region <- function(x) {
 #' @examples
 #' \donttest{
 #' ukppd_get("PL6 8RU")
+#'
 #' ukppd_get("PL6 8RU", start_date = "2001-01-01")
-#' ukppd_get("PL6 8RU", start_date = "2001-01-01")
+#'
+#' ukppd_get("PL6 8RU", item = "newBuild", optional_item = "street")
 #' }
 ukppd_get <- function(postcode = "PL6 8RU", item = NULL, optional_item = NULL,
                       start_date = NULL, end_date = NULL, ...) {
@@ -114,11 +116,27 @@ ukppd_get <- function(postcode = "PL6 8RU", item = NULL, optional_item = NULL,
     .postcode = postcode, .item = item, .optional_item = optional_item,
     .start_date = start_date, .end_date = end_date, ...)
   res <- process_request(query)
+  res <- clear_uri(res)
   res$amount <- as.numeric(res$amount)
   res$date <- as.Date(res$date)
   res$category <- gsub("@en", "", res$category)
   res
 }
+
+clear_uri <- function(x) {
+  common <- c("propertyType", "estateType")
+  ppi_address <- "propertyAddress"
+  ppi_transaction <- "hasTransaction"
+  ppi <- c('recordStatus', "transactionCategory")
+  pat <- ".*[ppi/transaction|ppi/address|ppi|common]/(.+)"
+  prefixed <- c(ppi_transaction, ppi_address, ppi, common)
+  lgl_idx <- colnames(x) %in% prefixed
+  if (any(lgl_idx)) {
+    x[, lgl_idx] <- lapply(x[, lgl_idx], function(y) gsub(pat, "\\1", y))
+  }
+  x
+}
+
 
 # assertions ukppd ---------------------------------------------------------
 
@@ -200,3 +218,5 @@ assert_valid_uktrans_regions <- function(x) {
   if (any(x %ni% uktrans_avail_regions()))
     stop("invalid region, see `uktrans_avail_regions()`", call. = FALSE)
 }
+
+# TODO check empty tibble

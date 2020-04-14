@@ -2,7 +2,26 @@
 process_request <- function(.query, ...) {
   req <- prefix_query(.query)
   res <- sparql(query = req, ...)
+  assert_nonempty(res)
   res
+}
+
+assert_nonempty <- function(x) {
+  if (empty(x)) {
+    stop("empty dataframe, check your query!", call. = FALSE)
+  }
+}
+
+#' @importFrom httr timeout
+try_GET <- function(x, ...) {
+  tryCatch(
+    GET(url = x, timeout(10), ...),
+    error = function(e) conditionMessage(e),
+    warning = function(w) conditionMessage(w)
+  )
+}
+is_response <- function(x) {
+  class(x) == "response"
 }
 
 #' Tools to create a custom SPARQL query
@@ -15,9 +34,10 @@ process_request <- function(.query, ...) {
 #' @param endpoint land registry's web service endpoint.
 #' @param ... further arguments passed to \code{httr::GET}.
 #'
-#' @importFrom httr stop_for_status
+#' @importFrom httr message_for_status GET
 #' @importFrom utils URLencode
 #' @importFrom tibble as_tibble
+#' @importFrom curl has_internet
 #'
 #' @return Returns a tibble that has been parsed from json.
 #'
@@ -31,12 +51,23 @@ process_request <- function(.query, ...) {
 sparql <- function(query, endpoint = "http://landregistry.data.gov.uk/landregistry/query", ...){
 
   enc_query <- gsub("\\+", "%2B", URLencode(query, reserved = TRUE))
-  res_json <- httr::GET(
+  if (!curl::has_internet()) {
+    message("No internet connection.")
+    return(invisible(NULL))
+  }
+  res_json <- GET(
     paste(endpoint, "?query=", enc_query, sep = ""),
     httr::add_headers("Accept" = "application/sparql-results+json"),
     ...
   )
-  httr::stop_for_status(res_json)
+  if (!is_response(res_json)) {
+    message(res_json)
+    return(invisible(NULL))
+  }
+  if (httr::http_error(res_json)) {
+    message_for_status(res_json)
+    return(invisible(NULL))
+  }
   res <- jsonlite::parse_json(res_json, simplifyVector = TRUE)$results$bindings
   x <- as_tibble(sapply(res, function(x) x$value))
   class(query) <- "query"
@@ -47,11 +78,12 @@ sparql <- function(query, endpoint = "http://landregistry.data.gov.uk/landregist
 #'
 #' @param x the result of query.
 #'
-#' @value Returns the a character vector with the query.
+#' @return Returns the a character vector with the query.
 #'
-get_query <- function(x) {
+retrieve_query <- function(x) {
   attr(x, "query")
 }
+
 
 print.query <- function(x) {
   cat(x)

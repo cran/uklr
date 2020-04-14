@@ -36,9 +36,15 @@ view_url <- function(url, open = interactive()) {
   invisible(url)
 }
 
-
-if (getRversion() >= "2.15.1") {
-  utils::globalVariables(
-    c("pc")
-  )
+empty <- function(df) {
+  (is.null(df) || nrow(df) == 0 || ncol(df) == 0)
 }
+
+
+
+
+# if (getRversion() >= "2.15.1") {
+#   utils::globalVariables(
+#     c("pc")
+#   )
+# }
